@@ -1,0 +1,40 @@
+upper_momentum_compensator_node:
+  ros__parameters:
+    loop_rate_hz: 200.0
+    state_timeout_sec: 0.1
+
+    upper_joint_order:
+      - L_shoulder_pitch_joint
+      - L_shoulder_roll_joint
+      - L_shoulder_yaw_joint
+      - L_elbow_joint
+      - R_shoulder_pitch_joint
+      - R_shoulder_roll_joint
+      - R_shoulder_yaw_joint
+      - R_elbow_joint
+
+    lower_joint_order:
+      - R_hip_joint
+      - R_hip2_joint
+      - R_thigh_joint
+      - R_calf_joint
+      - L_hip_joint
+      - L_hip2_joint
+      - L_thigh_joint
+      - L_calf_joint
+      - L_toe_joint
+      - R_toe_joint
+
+    # Start conservatively. Increase after checking sign and safety.
+    angular_gain: 0.3
+    damping: 0.001
+    max_dq: 3.0
+    max_position_step: 0.1
+
+    kp_default: 10.0
+    kd_default: 0.8
+    max_kp: 200.0
+    max_kd: 20.0
+
+    upper_position_lower_limits: [-3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14]
+    upper_position_upper_limits: [ 3.14,  3.14,  3.14,  3.14,  3.14,  3.14,  3.14,  3.14]

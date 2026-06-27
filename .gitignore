@@ -1,0 +1,23 @@
+# ROS2 build artifacts
+build/
+install/
+log/
+
+# # test / recorded data
+# robot_test_data/
+
+# # dependency folder
+# onnxruntime-linux-x64-1.23.2/
+
+# # ignore URDF folder inside joint_planner
+# src/joint_planner/urdf/
+
+# editor
+.vscode/
+
+# python cache
+__pycache__/
+*.pyc
+
+# common logs
+*.log

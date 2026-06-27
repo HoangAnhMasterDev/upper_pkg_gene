@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>upper_motor_bridge</name>
+  <version>0.0.1</version>
+  <description>ROS2 bridge for upper motor driver shared memory.</description>
+  <maintainer email="anh@example.com">Anh</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>interfaces</depend>
+
+  <build_depend>rosidl_default_generators</build_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

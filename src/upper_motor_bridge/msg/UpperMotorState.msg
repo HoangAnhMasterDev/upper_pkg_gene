@@ -1,0 +1,13 @@
+string[] joint_names
+float64[] position
+float64[] velocity
+float64[] torque_cmd
+float64[] feedback_torque
+float64 elapsed_time_ns
+bool is_ethercat_ready
+bool is_controller_ready
+bool is_control_active
+bool fault
+bool fault_status
+bool fault_limit
+bool fault_command_timeout

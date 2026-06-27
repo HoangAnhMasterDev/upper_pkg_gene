@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>upper_motor_test</name>
+  <version>0.0.1</version>
+  <description>Simple upper motor sine command test node</description>
+
+  <maintainer email="anh@example.com">anh</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>upper_motor_bridge</depend>
+  <depend>interfaces</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
