@@ -2,6 +2,7 @@
 
 #include <array>
 #include <vector>
+#include <iostream>
 #include <cmath>
 
 namespace upper_momentum_compensator
@@ -1044,9 +1045,9 @@ MomentumCompensator::computeArmCommand(const WholeBodyState& state)
 
     const Vec3 H_right_leg_z_world = z_axis_world * z_axis_world.dot(H_right_leg_world);
 
-    const Vec3 H_left_arm_target_world = -H_left_leg_z_world / arm_to_leg_momentum_ratio_;
+    const Vec3 H_left_arm_target_world = -H_right_leg_z_world / arm_to_leg_momentum_ratio_;
 
-    const Vec3 H_right_arm_target_world = -H_right_leg_z_world / arm_to_leg_momentum_ratio_;
+    const Vec3 H_right_arm_target_world = -H_left_leg_z_world / arm_to_leg_momentum_ratio_;
 
     /*
      * 7. Compute arm momentum matrices.
@@ -1081,56 +1082,344 @@ MomentumCompensator::computeArmCommand(const WholeBodyState& state)
     dq_left_cmd *= angular_gain_;
     dq_right_cmd *= angular_gain_;
 
+    dq_left_cmd(1) = 0.0;   // L shoulder roll
+    dq_left_cmd(2) = 0.0;   // L shoulder yaw
+    dq_left_cmd(3) = 0.0;   // L elbow
+
+    dq_right_cmd(1) = 0.0;  // R shoulder roll
+    dq_right_cmd(2) = 0.0;  // R shoulder yaw
+    dq_right_cmd(3) = 0.0;  // R elbow
+
+    // std::cout << "[DEBUG] H_L_leg_z = " << H_left_leg_world.z()
+    //         << ", H_R_leg_z = " << H_right_leg_world.z()
+    //         << std::endl;
+
+    // std::cout << "[DEBUG] H_L_target_z = " << H_left_arm_target_world.z()
+    //         << ", H_R_target_z = " << H_right_arm_target_world.z()
+    //         << std::endl;
+
+    // std::cout << "[DEBUG] A_L_col0_z = " << A_left_arm_world(2, 0)
+    //         << ", A_R_col0_z = " << A_right_arm_world(2, 0)
+    //         << std::endl;
+
+    // std::cout << "[DEBUG] dq_L_shoulder_pitch = " << dq_left_cmd(0)
+    //         << ", dq_R_shoulder_pitch = " << dq_right_cmd(0)
+    //         << std::endl;
+
     Vec8 dq_upper_cmd =
         mergeUpperHardwareOrder(
             dq_left_cmd,
             dq_right_cmd);
+    
 
     /*
-     * 9. Velocity saturation.
-     */
+    * 9. Raw momentum velocity saturation.
+    *
+    * dq_upper_cmd here is the momentum-based velocity command from solver.
+    * It may have non-zero mean, so we must NOT integrate it directly.
+    */
+    Vec8 dq_momentum_cmd = dq_upper_cmd;
+
     for (int i = 0; i < 8; ++i)
     {
-        dq_upper_cmd(i) =
+        dq_momentum_cmd(i) =
             clamp(
-                dq_upper_cmd(i),
+                dq_momentum_cmd(i),
                 -max_dq_,
                 max_dq_);
     }
 
     /*
-     * 10. Integrate dq_cmd to q_cmd.
-     */
-    Vec8 q_cmd_integrated =
-        q_cmd_prev_ + dq_upper_cmd * dt_;
+    * 10. Add return-to-nominal term.
+    *
+    * Current desired nominal is zero:
+    *
+    *   q_nominal = 0
+    *
+    * Stable command dynamics:
+    *
+    *   dq_total = dq_momentum_cmd - k_return * (q_cmd_prev - q_nominal)
+    *   q_cmd_next = q_cmd_prev + dq_total * dt
+    *
+    * This prevents drift caused by non-zero mean dq_momentum_cmd.
+    */
+    Vec8 q_nominal;
+    q_nominal.setZero();
+    q_nominal(0) = 0.0;   // L shoulder pitch
+    q_nominal(4) = 0.0;   // R shoulder pitch
 
-    Vec8 q_cmd_safe;
-    q_cmd_safe.setZero();
+    const double k_return = 15.0;  // 1/s. Try 0.5 ~ 2.0.
+
+    Vec8 dq_return = -k_return * (q_cmd_prev_ - q_nominal);
+
+    Vec8 dq_total = dq_momentum_cmd + dq_return;
+
+    /*
+    * For current debug, only use shoulder pitch.
+    * Keep all other upper joints exactly at nominal.
+    */
+    for (int i = 0; i < 8; ++i)
+    {
+        if (i != 0 && i != 4 )
+        {
+            dq_total(i) = 0.0;
+        }
+    }
+
+    /*
+    * Clamp final velocity command after adding return term.
+    */
+    const double max_dq_total = 0.5;  // rad/s
 
     for (int i = 0; i < 8; ++i)
     {
+        dq_total(i) =
+            clamp(
+                dq_total(i),
+                -max_dq_total,
+                max_dq_total);
+    }
+
+    /*
+    * 11. Integrate stable dq_total to q_cmd.
+    */
+    Vec8 q_cmd_integrated =
+        q_cmd_prev_ + dq_total * dt_;
+
+    /*
+    * 12. Hard position bound around nominal.
+    *
+    * This is a safety bound. It prevents q_cmd from becoming too large
+    * even if the momentum estimate is temporarily wrong.
+    */
+    // Activate both elbow and shoulder bounds for safety to compensate momentum. The shoulder bound is more strict than the elbow bound.
+
+
+    // const double q_bound = 0.35;  // rad
+
+    // Vec8 q_cmd_safe;
+    // q_cmd_safe.setZero();
+
+    // const double shoulder_bound = 0.35;  // rad
+    // const double elbow_bound    = 0.50;  // rad
+
+    // /* L shoulder pitch
+    // */
+    // q_cmd_safe(0) =
+    //     clamp(
+    //         q_cmd_integrated(0),
+    //         q_nominal(0) - shoulder_bound,
+    //         q_nominal(0) + shoulder_bound);
+
+    // /*
+    // * L elbow
+    // */
+
+    // q_cmd_safe(3) =
+    //     clamp(
+    //         q_cmd_integrated(3),
+    //         q_nominal(3) - elbow_bound,
+    //         q_nominal(3) + elbow_bound);
+    // /*
+    // * R shoulder pitch
+    // */
+
+    // q_cmd_safe(4) =
+    //     clamp(
+    //         q_cmd_integrated(4),
+    //         q_nominal(4) - shoulder_bound,
+    //         q_nominal(4) + shoulder_bound);
+
+    // /*
+    // * R elbow
+    // */
+
+    // q_cmd_safe(7) =
+    //     clamp(
+    //         q_cmd_integrated(7),
+    //         q_nominal(7) - elbow_bound,
+    //         q_nominal(7) + elbow_bound);
+
+    /*
+    * Keep unused joints fixed at zero nominal.
+    */
+
+    /*
+    * 12. Position command.
+    *
+    * Shoulder pitch comes from momentum-based stable integration.
+    * Elbow is generated as a function of shoulder pitch.
+    */
+    Vec8 q_cmd_safe;
+    q_cmd_safe.setZero();
+
+    const double shoulder_bound = 0.07;  // rad
+
+    /*
+    * Shoulder pitch commands from momentum compensation.
+    */
+    q_cmd_safe(0) =
+        clamp(
+            q_cmd_integrated(0),
+            q_nominal(0) - shoulder_bound,
+            q_nominal(0) + shoulder_bound);
+
+    q_cmd_safe(4) =
+        clamp(
+            q_cmd_integrated(4),
+            q_nominal(4) - shoulder_bound,
+            q_nominal(4) + shoulder_bound);
+
+    /*
+    * Human-like elbow coupling.
+    *
+    * Desired behavior:
+    *   shoulder fully backward -> elbow = 0.0 rad
+    *   shoulder fully forward  -> elbow = 0.3 rad
+    *
+    * Assumption:
+    *   q_shoulder > 0 means arm swings forward.
+    *
+    * If RViz shows the opposite behavior, change q_shoulder to -q_shoulder
+    * inside elbowFromShoulder().
+    */
+    const double shoulder_backward_ref = shoulder_bound;
+    const double shoulder_forward_ref  =  -shoulder_bound;
+    const double elbow_backward_value  = 0.0;
+    const double elbow_forward_value   = -0.3;
+
+    auto smoothstep = [](double x) -> double
+    {
+        if (x < 0.0) x = 0.0;
+        if (x > 1.0) x = 1.0;
+
+        return x * x * (3.0 - 2.0 * x);
+    };
+
+    auto elbowFromShoulder = [&](double q_shoulder) -> double
+    {
+        /*
+        * Map:
+        *   q_shoulder = -shoulder_bound -> ratio = 0 -> elbow = 0.0
+        *   q_shoulder = +shoulder_bound -> ratio = 1 -> elbow = -0.3
+        */
+        const double ratio_raw = (q_shoulder - shoulder_backward_ref) / (shoulder_forward_ref - shoulder_backward_ref);
+
+        const double ratio = smoothstep(ratio_raw);
+
+        return elbow_backward_value + (elbow_forward_value - elbow_backward_value) * ratio;
+    };
+
+    /*
+    * Elbow commands from shoulder pitch.
+    */
+    q_cmd_safe(3) = elbowFromShoulder(q_cmd_safe(0));  // L_elbow
+
+    q_cmd_safe(7) = elbowFromShoulder(q_cmd_safe(4));  // R_elbow
+
+    q_cmd_safe(1) = 0.0;
+    q_cmd_safe(2) = 0.0;
+    // q_cmd_safe(3) = 0.0;
+    q_cmd_safe(5) = 0.0;
+    q_cmd_safe(6) = 0.0;
+    // q_cmd_safe(7) = 0.0;
+
+    /*
+    * 13. Optional per-cycle position step limit.
+    *
+    * Important:
+    * Do NOT clamp around q_upper_hw here if q_upper_hw itself is delayed or
+    * already drifted. Clamp around previous command instead.
+    */
+    for (int i = 0; i < 8; ++i)
+    {
         const double lo =
-            q_upper_hw(i) - max_position_step_;
+            q_cmd_prev_(i) - max_position_step_;
 
         const double hi =
-            q_upper_hw(i) + max_position_step_;
+            q_cmd_prev_(i) + max_position_step_;
 
         q_cmd_safe(i) =
             clamp(
-                q_cmd_integrated(i),
+                q_cmd_safe(i),
                 lo,
                 hi);
     }
 
-    q_cmd_prev_ =
-        q_cmd_safe;
+    /*
+    * Final velocity command consistent with final position command.
+    *
+    * This is important because elbow is generated from shoulder position,
+    * not from the momentum dq_total.
+    */
+    Vec8 dq_cmd_out =
+        (q_cmd_safe - q_cmd_prev_) / dt_;
+
+    const double max_dq_out = 1.2;  // rad/s
+
+    for (int i = 0; i < 8; ++i)
+    {
+        dq_cmd_out(i) =
+            clamp(
+                dq_cmd_out(i),
+                -max_dq_out,
+                max_dq_out);
+    }
+
+    q_cmd_prev_ = q_cmd_safe;
+
+    static int count = 0;
+    static Vec8 dq_momentum_sum = Vec8::Zero();
+    static Vec8 dq_return_sum = Vec8::Zero();
+    static Vec8 dq_total_sum = Vec8::Zero();
+    static Vec8 q_sum = Vec8::Zero();
+    static Vec8 dq_cmd_out_sum = Vec8::Zero();
+    dq_cmd_out_sum += dq_cmd_out;
+    dq_momentum_sum += dq_momentum_cmd;
+    dq_return_sum += dq_return;
+    dq_total_sum += dq_total;
+    q_sum += q_cmd_prev_;
+    count++;
+
+    if (count >= 1000)
+    {
+        const double inv = 1.0 / static_cast<double>(count);
+        std::cout << "[MeanDebug] mean dq_momentum = "
+                << (dq_momentum_sum * inv).transpose()
+                << std::endl;
+        std::cout << "[MeanDebug] mean dq_return   = "
+                << (dq_return_sum * inv).transpose()
+                << std::endl;
+        std::cout << "[MeanDebug] mean dq_total    = "
+                << (dq_total_sum * inv).transpose()
+                << std::endl;
+        std::cout << "[MeanDebug] mean q_cmd       = "
+                << (q_sum * inv).transpose()
+                << std::endl;
+        std::cout << "[ElbowDebug] "
+                << "L_sh = " << q_cmd_prev_(0)
+                << ", L_elbow = " << q_cmd_prev_(3)
+                << ", R_sh = " << q_cmd_prev_(4)
+                << ", R_elbow = " << q_cmd_prev_(7)
+                << std::endl;
+        std::cout << "[MeanDebug] mean dq_cmd_out  = "
+                << (dq_cmd_out_sum * inv).transpose()
+                << std::endl;
+
+        dq_momentum_sum.setZero();
+        dq_return_sum.setZero();
+        dq_total_sum.setZero();
+        dq_cmd_out_sum.setZero();
+        q_sum.setZero();
+        count = 0;
+    }
 
     /*
      * 11. Return command.
      */
     ArmCommand cmd;
     cmd.q_cmd = q_cmd_safe;
-    cmd.dq_cmd = dq_upper_cmd;
+    cmd.dq_cmd = dq_cmd_out;
 
     return cmd;
 }

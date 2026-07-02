@@ -46,7 +46,7 @@ Visualization Manager:
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel
       Collision Enabled: false
-      Description File: /home/anh/upper_ws/src/upper_motor_test/urdf/wholebody_4_dof_arm_20deg_with_head_RL.urdf
+      Description File: /home/humanoid/HoangAnh/upper_pkg_gene/src/upper_motor_test/urdf/wholebody_4_dof_arm_20deg_with_head_RL.urdf
       Description Source: File
       Description Topic:
         Depth: 5

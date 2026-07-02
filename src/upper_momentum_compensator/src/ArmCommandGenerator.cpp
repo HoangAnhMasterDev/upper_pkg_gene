@@ -39,8 +39,8 @@ interfaces::msg::CustomJointState ArmCommandGenerator::makeCommand(
     cmd.kd[i] = kd_default_;
   }
 
-  std::cout << "ArmCommandGenerator::makeCommand: q_cmd = " << q_cmd.transpose() << std::endl;
-  std::cout << "ArmCommandGenerator::makeCommand: dq_cmd = " << dq_cmd.transpose() << std::endl;
+  // std::cout << "ArmCommandGenerator::makeCommand: q_cmd = " << q_cmd.transpose() << std::endl;
+  // std::cout << "ArmCommandGenerator::makeCommand: dq_cmd = " << dq_cmd.transpose() << std::endl;
 
 
   return cmd;

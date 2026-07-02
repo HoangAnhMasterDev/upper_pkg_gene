@@ -19,19 +19,19 @@ UpperMomentumCompensatorNode::UpperMomentumCompensatorNode()
     this->declare_parameter<double>("dt", 0.01);
 
   const double angular_gain =
-    this->declare_parameter<double>("angular_gain", 0.2);
+    this->declare_parameter<double>("angular_gain", 1.0);
 
   const double damping =
     this->declare_parameter<double>("damping", 0.03);
 
   const double max_dq =
-    this->declare_parameter<double>("max_dq", 0.25);
+    this->declare_parameter<double>("max_dq", 3.0);
 
   const double max_position_step =
-    this->declare_parameter<double>("max_position_step", 0.003);
+    this->declare_parameter<double>("max_position_step", 0.02);
 
   const double arm_to_leg_momentum_ratio =
-    this->declare_parameter<double>("arm_to_leg_momentum_ratio", 3.0);
+    this->declare_parameter<double>("arm_to_leg_momentum_ratio", 1.0);
 
   const double kp_default =
     this->declare_parameter<double>("kp_default", 10.0);
@@ -163,7 +163,7 @@ void UpperMomentumCompensatorNode::timerCallback()
 
   if (!state_sync_->isReady(now_sec, state_timeout_sec_))
   {
-    std::cout << "error here " << std::endl;
+    // std::cout << "error here " << std::endl;
     publishInactiveCommand();
     return;
   }
@@ -173,7 +173,7 @@ void UpperMomentumCompensatorNode::timerCallback()
 
   if (!enabled_)
   {
-    std::cout << "enable errror" << std::endl;
+    // std::cout << "enable errror" << std::endl;
     publishInactiveCommand();
     return;
   }
@@ -198,14 +198,14 @@ void UpperMomentumCompensatorNode::timerCallback()
   /*
    * MomentumCompensator now returns both q_cmd and dq_cmd.
    */
-  std::cout << "state.q_upper: " << state.q_upper.transpose() << std::endl;
-  std::cout << "state.dq_upper: " << state.dq_upper.transpose() << std::endl;
-  std::cout << "state.q_lower: " << state.q_lower.transpose() << std::endl;
-  std::cout << "state.dq_lower: " << state.dq_lower.transpose() << std::endl;
-  std::cout << "base angular velocity: " << state.base_angular_velocity.transpose() << std::endl;
+  // std::cout << "state.q_upper: " << state.q_upper.transpose() << std::endl;
+  // std::cout << "state.dq_upper: " << state.dq_upper.transpose() << std::endl;
+  // std::cout << "state.q_lower: " << state.q_lower.transpose() << std::endl;
+  // std::cout << "state.dq_lower: " << state.dq_lower.transpose() << std::endl;
+  // std::cout << "base angular velocity: " << state.base_angular_velocity.transpose() << std::endl;
   const auto arm_cmd = compensator_.computeArmCommand(state);
-  std::cout << "arm_cmd.q_cmd: " << arm_cmd.q_cmd.transpose() << std::endl;
-  std::cout << "arm_cmd.dq_cmd: " << arm_cmd.dq_cmd.transpose() << std::endl;
+  // std::cout << "arm_cmd.q_cmd: " << arm_cmd.q_cmd.transpose() << std::endl;
+  // std::cout << "arm_cmd.dq_cmd: " << arm_cmd.dq_cmd.transpose() << std::endl;
   auto cmd =
     command_generator_.makeCommand(
       state,

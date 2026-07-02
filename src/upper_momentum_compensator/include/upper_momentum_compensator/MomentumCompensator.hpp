@@ -113,11 +113,11 @@ private:
 
 private:
     double dt_{0.01};
-    double angular_gain_{0.2};
+    double angular_gain_{1.0};
     double damping_{0.03};
-    double max_dq_{0.25};
-    double max_position_step_{0.003};
-    double arm_to_leg_momentum_ratio_{3.0};
+    double max_dq_{3.0};
+    double max_position_step_{0.02};
+    double arm_to_leg_momentum_ratio_{1.0};
 
     Vec8 q_cmd_prev_;
     bool has_q_cmd_prev_{false};

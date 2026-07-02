@@ -43,7 +43,7 @@ bool StateSynchronizer::isReady(double now_sec, double timeout_sec) const
   const bool upper_ok = state_.upper_valid && (now_sec - state_.upper_stamp_sec) < timeout_sec && !state_.upper_fault;
   const bool lower_ok = state_.lower_valid && (now_sec - state_.lower_stamp_sec) < timeout_sec;
   // IMU is allowed to be missing for first hold tests; base angular velocity will be zero.
-  std::cout << "upper_ok: " << upper_ok << ", lower_ok: " << lower_ok << std::endl;
+  // std::cout << "upper_ok: " << upper_ok << ", lower_ok: " << lower_ok << std::endl;
   return upper_ok && lower_ok;
 }
 
