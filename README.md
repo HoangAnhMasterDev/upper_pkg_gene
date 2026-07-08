@@ -17,7 +17,7 @@ ROS2 workspace with two packages:
 ## Build
 
 ```bash
-cd ~/upper_ros2_ws
+cd ~/upper_ws
 colcon build --symlink-install
 source install/setup.bash
 ```

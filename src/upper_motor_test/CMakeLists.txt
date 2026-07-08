@@ -44,6 +44,26 @@ install(TARGETS humanoid_pseudo
   DESTINATION lib/${PROJECT_NAME}
 )
 
+add_executable(lower_humanoid_pseudo
+  src/lower_humanoid_pseudo.cpp
+)
+
+ament_target_dependencies(lower_humanoid_pseudo
+  rclcpp
+  sensor_msgs
+  upper_motor_bridge
+  interfaces
+)
+
+install(TARGETS lower_humanoid_pseudo
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(PROGRAMS
+  src/upper_data_recorder.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 install(DIRECTORY launch urdf rviz
   DESTINATION share/${PROJECT_NAME}
 )
