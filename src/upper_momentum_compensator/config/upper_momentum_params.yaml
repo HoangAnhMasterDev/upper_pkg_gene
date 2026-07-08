@@ -1,6 +1,6 @@
 upper_momentum_compensator_node:
   ros__parameters:
-    loop_rate_hz: 200.0
+    loop_rate_hz: 1000.0
     state_timeout_sec: 0.1
 
     upper_joint_order:
@@ -31,8 +31,8 @@ upper_momentum_compensator_node:
     max_dq: 3.0
     max_position_step: 0.02
 
-    kp_default: 10.0
-    kd_default: 0.8
+    kp_default: 30.0
+    kd_default: 1.0
     max_kp: 200.0
     max_kd: 20.0
 

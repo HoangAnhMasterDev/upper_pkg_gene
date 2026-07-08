@@ -10,7 +10,7 @@ UpperMomentumCompensatorNode::UpperMomentumCompensatorNode()
 : Node("upper_momentum_compensator_node")
 {
   loop_rate_hz_ =
-    this->declare_parameter<double>("loop_rate_hz", 200.0);
+    this->declare_parameter<double>("loop_rate_hz", 1000.0);
 
   state_timeout_sec_ =
     this->declare_parameter<double>("state_timeout_sec", 0.1);
@@ -34,10 +34,10 @@ UpperMomentumCompensatorNode::UpperMomentumCompensatorNode()
     this->declare_parameter<double>("arm_to_leg_momentum_ratio", 1.0);
 
   const double kp_default =
-    this->declare_parameter<double>("kp_default", 10.0);
+    this->declare_parameter<double>("kp_default", 30.0);
 
   const double kd_default =
-    this->declare_parameter<double>("kd_default", 0.8);
+    this->declare_parameter<double>("kd_default", 1.0);
 
   const double max_kp =
     this->declare_parameter<double>("max_kp", 200.0);

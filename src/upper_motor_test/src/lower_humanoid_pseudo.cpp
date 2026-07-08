@@ -8,26 +8,30 @@
 #include <unordered_map>
 
 #include "interfaces/msg/custom_joint_state.hpp"
+#include "upper_motor_bridge/msg/upper_motor_state.hpp"
 
-class LowerBodyPseudoDriverNode : public rclcpp::Node
+class WholeBodyPseudoDriverNode : public rclcpp::Node
 {
 public:
-    LowerBodyPseudoDriverNode()
-    : Node("lower_body_pseudo_driver_node")
+    WholeBodyPseudoDriverNode()
+    : Node("whole_body_pseudo_driver_node")
     {
         declareParameters();
         initJointNames();
         initBuffers();
         initRosInterfaces();
 
-        RCLCPP_INFO(get_logger(), "LowerBodyPseudoDriverNode started.");
+        RCLCPP_INFO(get_logger(), "WholeBodyPseudoDriverNode started.");
         RCLCPP_INFO(get_logger(), "Lower command topic: %s", lower_command_topic_.c_str());
-        RCLCPP_INFO(get_logger(), "Publishing /joint_states for RViz.");
-        RCLCPP_INFO(get_logger(), "Publishing /joint_states_fb_torque.");
+        RCLCPP_INFO(get_logger(), "Upper feedback topic: %s", upper_feedback_topic_.c_str());
+        RCLCPP_INFO(get_logger(), "Publishing whole-body /joint_states for RViz.");
+        RCLCPP_INFO(get_logger(), "Lower body feedback is ideal: q_feedback = q_cmd, dq_feedback = dq_cmd.");
+        RCLCPP_INFO(get_logger(), "Upper body feedback is subscribed from upper motor state.");
     }
 
 private:
     using CommandMsg = interfaces::msg::CustomJointState;
+    using UpperStateMsg = upper_motor_bridge::msg::UpperMotorState;
 
     void declareParameters()
     {
@@ -35,6 +39,11 @@ private:
             declare_parameter<std::string>(
                 "lower_command_topic",
                 "/joint_cmds");
+
+        upper_feedback_topic_ =
+            declare_parameter<std::string>(
+                "upper_feedback_topic",
+                "/upper_motor/state");
 
         publish_rate_hz_ =
             declare_parameter<double>(
@@ -60,13 +69,23 @@ private:
     void initJointNames()
     {
         /*
-         * Lower-body-only joint list for RViz.
+         * Whole-body joint list for /joint_states.
          *
-         * The order here is the order published in /joint_states.
-         * Waist_joint is kept at zero for visualization compatibility.
+         * Upper body is updated from /upper_motor/state.
+         * Lower body is updated ideally from /joint_cmds.
          */
         urdf_joint_names_ = {
             "Waist_joint",
+
+            "L_shoulder_pitch_joint",
+            "L_shoulder_roll_joint",
+            "L_shoulder_yaw_joint",
+            "L_elbow_joint",
+
+            "R_shoulder_pitch_joint",
+            "R_shoulder_roll_joint",
+            "R_shoulder_yaw_joint",
+            "R_elbow_joint",
 
             "L_hip_joint",
             "L_hip2_joint",
@@ -79,6 +98,21 @@ private:
             "R_thigh_joint",
             "R_calf_joint",
             "R_toe_joint"
+        };
+
+        /*
+         * Upper feedback names expected from /upper_motor/state.
+         */
+        upper_state_joint_names_ = {
+            "L_shoulder_pitch_joint",
+            "L_shoulder_roll_joint",
+            "L_shoulder_yaw_joint",
+            "L_elbow_joint",
+
+            "R_shoulder_pitch_joint",
+            "R_shoulder_roll_joint",
+            "R_shoulder_yaw_joint",
+            "R_elbow_joint"
         };
 
         /*
@@ -111,7 +145,7 @@ private:
         };
 
         /*
-         * Short lower command names.
+         * Lower command short names.
          */
         command_to_urdf_index_["L_hip"] =
             indexOf("L_hip_joint");
@@ -134,6 +168,28 @@ private:
             indexOf("R_calf_joint");
         command_to_urdf_index_["R_toe"] =
             indexOf("R_toe_joint");
+
+        /*
+         * Upper short names are accepted only for feedback safety.
+         * The pseudo driver does NOT subscribe upper command anymore.
+         */
+        command_to_urdf_index_["L_shoulder_pitch"] =
+            indexOf("L_shoulder_pitch_joint");
+        command_to_urdf_index_["L_shoulder_roll"] =
+            indexOf("L_shoulder_roll_joint");
+        command_to_urdf_index_["L_shoulder_yaw"] =
+            indexOf("L_shoulder_yaw_joint");
+        command_to_urdf_index_["L_elbow"] =
+            indexOf("L_elbow_joint");
+
+        command_to_urdf_index_["R_shoulder_pitch"] =
+            indexOf("R_shoulder_pitch_joint");
+        command_to_urdf_index_["R_shoulder_roll"] =
+            indexOf("R_shoulder_roll_joint");
+        command_to_urdf_index_["R_shoulder_yaw"] =
+            indexOf("R_shoulder_yaw_joint");
+        command_to_urdf_index_["R_elbow"] =
+            indexOf("R_elbow_joint");
 
         /*
          * Also accept full URDF joint names directly.
@@ -183,7 +239,7 @@ private:
 
         RCLCPP_INFO(
             get_logger(),
-            "Hardware-to-URDF visualization offset: %s = %.6f rad",
+            "Lower hardware-to-URDF visualization offset: %s = %.6f rad",
             joint_name.c_str(),
             offset);
     }
@@ -199,11 +255,11 @@ private:
         q_cmd_offset_.assign(n, 0.0);
 
         /*
-         * Hardware zero offset relative to URDF.
+         * Lower-body hardware zero offset relative to URDF.
          *
          * q_visual_urdf = q_command_hardware + offset
          *
-         * Current lower-body convention:
+         * Current convention:
          *
          * hip pitch / thigh = -45 deg
          * knee / calf       = -90 deg
@@ -253,7 +309,16 @@ private:
                 lower_command_topic_,
                 rclcpp::QoS(10),
                 std::bind(
-                    &LowerBodyPseudoDriverNode::lowerCommandCallback,
+                    &WholeBodyPseudoDriverNode::lowerCommandCallback,
+                    this,
+                    std::placeholders::_1));
+
+        upper_feedback_sub_ =
+            create_subscription<UpperStateMsg>(
+                upper_feedback_topic_,
+                rclcpp::QoS(10),
+                std::bind(
+                    &WholeBodyPseudoDriverNode::upperFeedbackCallback,
                     this,
                     std::placeholders::_1));
 
@@ -265,7 +330,7 @@ private:
             create_wall_timer(
                 period,
                 std::bind(
-                    &LowerBodyPseudoDriverNode::publishFeedback,
+                    &WholeBodyPseudoDriverNode::publishFeedback,
                     this));
     }
 
@@ -277,8 +342,14 @@ private:
         {
             /*
              * Lower command with names.
+             * Lower body is ideal:
+             *
+             *   q_feedback = q_cmd
+             *   dq_feedback = dq_cmd
+             *
+             * For RViz visualization, lower offset may be added to q.
              */
-            applyNamedCommand(
+            applyLowerNamedCommand(
                 *msg,
                 now_sec);
         }
@@ -293,20 +364,73 @@ private:
                 now_sec);
         }
 
-        has_command_ = true;
+        has_lower_command_ = true;
+    }
+
+    void upperFeedbackCallback(const UpperStateMsg::SharedPtr msg)
+    {
+        /*
+         * Upper body feedback is NOT faked here.
+         * It comes from /upper_motor/state.
+         *
+         * This lets angular momentum code publish upper command separately,
+         * while this pseudo driver only merges upper feedback into whole-body
+         * /joint_states.
+         */
+
+        const size_t n =
+            std::min(
+                msg->joint_names.size(),
+                msg->position.size());
+
+        for (size_t i = 0; i < n; ++i)
+        {
+            const auto it =
+                command_to_urdf_index_.find(
+                    msg->joint_names[i]);
+
+            if (it == command_to_urdf_index_.end())
+            {
+                continue;
+            }
+
+            const int urdf_idx = it->second;
+
+            if (urdf_idx < 0 || urdf_idx >= static_cast<int>(q_.size()))
+            {
+                continue;
+            }
+
+            q_[urdf_idx] = msg->position[i];
+
+            if (i < msg->velocity.size())
+            {
+                dq_[urdf_idx] =
+                    std::clamp(
+                        msg->velocity[i],
+                        -max_fake_dq_,
+                        max_fake_dq_);
+            }
+
+            if (i < msg->torque_cmd.size())
+            {
+                tau_[urdf_idx] = msg->torque_cmd[i];
+            }
+        }
+
+        has_upper_feedback_ = true;
     }
 
     /*
-     * Position feedback setter.
+     * Position feedback setter for ideal lower body.
      *
-     * If allow_finite_difference_velocity = true:
-     *   dq_feedback is estimated from derivative of q_feedback.
+     * If command velocity exists:
+     *   dq_feedback = dq_cmd
      *
-     * If allow_finite_difference_velocity = false:
-     *   this function only updates q_feedback.
-     *   dq_feedback should be set separately from dq_cmd.
+     * If command velocity does not exist:
+     *   dq_feedback is finite-differenced from q command.
      */
-    void setJointPositionFromCommand(
+    void setLowerPositionFromCommand(
         int urdf_idx,
         double q_new,
         double now_sec,
@@ -342,16 +466,7 @@ private:
         has_q_cmd_prev_[urdf_idx] = true;
     }
 
-    /*
-     * Velocity feedback setter.
-     *
-     * In pseudo driver:
-     *
-     *   dq_feedback = dq_cmd
-     *
-     * No offset is applied to velocity because the position offset is constant.
-     */
-    void setJointVelocityFromCommand(
+    void setLowerVelocityFromCommand(
         int urdf_idx,
         double dq_cmd)
     {
@@ -367,7 +482,7 @@ private:
                 max_fake_dq_);
     }
 
-    double applyOffsetIfEnabled(
+    double applyLowerOffsetIfEnabled(
         int urdf_idx,
         double q_cmd) const
     {
@@ -384,7 +499,7 @@ private:
         return q_cmd + q_cmd_offset_[urdf_idx];
     }
 
-    void applyNamedCommand(
+    void applyLowerNamedCommand(
         const CommandMsg& msg,
         double now_sec)
     {
@@ -412,38 +527,43 @@ private:
             }
 
             /*
-             * Lower body position visualization:
+             * Only lower body commands should be applied here.
+             * If a command accidentally contains upper joints, ignore them.
+             */
+            if (!isLowerJointIndex(urdf_idx))
+            {
+                continue;
+            }
+
+            /*
+             * Lower body ideal feedback:
              *
              *   q_feedback_visual = q_cmd + offset
-             *
-             * Offset can be disabled by parameter:
-             *
-             *   use_visual_offset:=false
              */
             const double q_visual =
-                applyOffsetIfEnabled(
+                applyLowerOffsetIfEnabled(
                     urdf_idx,
                     msg.state.position[i]);
 
             const bool has_velocity =
                 i < msg.state.velocity.size();
 
-            setJointPositionFromCommand(
+            setLowerPositionFromCommand(
                 urdf_idx,
                 q_visual,
                 now_sec,
                 !has_velocity);
 
             /*
-             * Lower body velocity feedback:
+             * Lower body ideal velocity:
              *
              *   dq_feedback = dq_cmd
              *
-             * No offset is added to velocity.
+             * Offset is constant, so velocity offset is zero.
              */
             if (has_velocity)
             {
-                setJointVelocityFromCommand(
+                setLowerVelocityFromCommand(
                     urdf_idx,
                     msg.state.velocity[i]);
             }
@@ -483,32 +603,32 @@ private:
             }
 
             /*
-             * Lower body position visualization:
+             * Lower body ideal feedback:
              *
              *   q_feedback_visual = q_cmd + offset
              */
             const double q_visual =
-                applyOffsetIfEnabled(
+                applyLowerOffsetIfEnabled(
                     urdf_idx,
                     msg.state.position[i]);
 
             const bool has_velocity =
                 i < msg.state.velocity.size();
 
-            setJointPositionFromCommand(
+            setLowerPositionFromCommand(
                 urdf_idx,
                 q_visual,
                 now_sec,
                 !has_velocity);
 
             /*
-             * Lower body velocity feedback:
+             * Lower body ideal velocity:
              *
              *   dq_feedback = dq_cmd
              */
             if (has_velocity)
             {
-                setJointVelocityFromCommand(
+                setLowerVelocityFromCommand(
                     urdf_idx,
                     msg.state.velocity[i]);
             }
@@ -518,6 +638,22 @@ private:
                 tau_[urdf_idx] = msg.state.effort[i];
             }
         }
+    }
+
+    bool isLowerJointIndex(int urdf_idx) const
+    {
+        if (urdf_idx < 0 || urdf_idx >= static_cast<int>(urdf_joint_names_.size()))
+        {
+            return false;
+        }
+
+        const std::string& name = urdf_joint_names_[urdf_idx];
+
+        return name.find("_hip_joint")    != std::string::npos ||
+               name.find("_hip2_joint")   != std::string::npos ||
+               name.find("_thigh_joint")  != std::string::npos ||
+               name.find("_calf_joint")   != std::string::npos ||
+               name.find("_toe_joint")    != std::string::npos;
     }
 
     void publishFeedback()
@@ -535,6 +671,7 @@ private:
 
 private:
     std::string lower_command_topic_;
+    std::string upper_feedback_topic_;
 
     double publish_rate_hz_{100.0};
     bool accept_command_without_names_{true};
@@ -542,10 +679,12 @@ private:
 
     double max_fake_dq_{10.0};
 
-    bool has_command_{false};
+    bool has_lower_command_{false};
+    bool has_upper_feedback_{false};
 
     std::vector<std::string> urdf_joint_names_;
     std::vector<std::string> lower_command_names_;
+    std::vector<std::string> upper_state_joint_names_;
 
     std::unordered_map<std::string, int> command_to_urdf_index_;
 
@@ -554,8 +693,9 @@ private:
     std::vector<double> tau_;
 
     /*
-     * Hardware-to-URDF offset for visualization.
-     * Size follows urdf_joint_names_ order.
+     * Hardware-to-URDF offset for lower-body visualization.
+     * Offset is applied only to lower-body position command.
+     * Upper-body feedback is never offset here.
      */
     std::vector<double> q_cmd_offset_;
 
@@ -569,6 +709,7 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr fb_torque_pub_;
 
     rclcpp::Subscription<CommandMsg>::SharedPtr lower_command_sub_;
+    rclcpp::Subscription<UpperStateMsg>::SharedPtr upper_feedback_sub_;
 
     rclcpp::TimerBase::SharedPtr timer_;
 };
@@ -578,7 +719,7 @@ int main(int argc, char** argv)
     rclcpp::init(argc, argv);
 
     rclcpp::spin(
-        std::make_shared<LowerBodyPseudoDriverNode>());
+        std::make_shared<WholeBodyPseudoDriverNode>());
 
     rclcpp::shutdown();
 
