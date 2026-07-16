@@ -26,13 +26,13 @@ upper_momentum_compensator_node:
       - R_toe_joint
 
     # Start conservatively. Increase after checking sign and safety.
-    angular_gain: 1.0
+    angular_gain: 2.0
     damping: 0.001
     max_dq: 3.0
-    max_position_step: 0.02
+    max_position_step: 0.2
 
-    kp_default: 30.0
-    kd_default: 1.0
+    kp_default: 80.0
+    kd_default: 0.5
     max_kp: 200.0
     max_kd: 20.0
 

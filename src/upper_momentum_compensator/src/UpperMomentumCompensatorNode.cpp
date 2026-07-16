@@ -19,7 +19,7 @@ UpperMomentumCompensatorNode::UpperMomentumCompensatorNode()
     this->declare_parameter<double>("dt", 0.01);
 
   const double angular_gain =
-    this->declare_parameter<double>("angular_gain", 1.0);
+    this->declare_parameter<double>("angular_gain", 2.0);
 
   const double damping =
     this->declare_parameter<double>("damping", 0.03);
@@ -28,16 +28,16 @@ UpperMomentumCompensatorNode::UpperMomentumCompensatorNode()
     this->declare_parameter<double>("max_dq", 3.0);
 
   const double max_position_step =
-    this->declare_parameter<double>("max_position_step", 0.02);
+    this->declare_parameter<double>("max_position_step", 0.2);
 
   const double arm_to_leg_momentum_ratio =
-    this->declare_parameter<double>("arm_to_leg_momentum_ratio", 1.0);
+    this->declare_parameter<double>("arm_to_leg_momentum_ratio", 0.5);
 
   const double kp_default =
-    this->declare_parameter<double>("kp_default", 30.0);
+    this->declare_parameter<double>("kp_default", 80.0);
 
   const double kd_default =
-    this->declare_parameter<double>("kd_default", 1.0);
+    this->declare_parameter<double>("kd_default", 0.5);
 
   const double max_kp =
     this->declare_parameter<double>("max_kp", 200.0);

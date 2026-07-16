@@ -1,0 +1,96 @@
+upper_payload_hold_controller_node:
+  ros__parameters:
+    command_topic: "/upper_motor/command"
+    upper_state_topic: "/upper_motor/state"
+
+    loop_rate_hz: 100.0
+
+    reach_duration_sec: 3.0
+    reach_finish_error_threshold: 0.04
+    hold_ramp_duration_sec: 2.0
+
+    joint_names:
+      - "L_shoulder_pitch"
+      - "L_shoulder_roll"
+      - "L_shoulder_yaw"
+      - "L_elbow"
+      - "R_shoulder_pitch"
+      - "R_shoulder_roll"
+      - "R_shoulder_yaw"
+      - "R_elbow"
+
+    # Target posture.
+    # Joint order:
+    # 0 L_shoulder_pitch
+    # 1 L_shoulder_roll
+    # 2 L_shoulder_yaw
+    # 3 L_elbow
+    # 4 R_shoulder_pitch
+    # 5 R_shoulder_roll
+    # 6 R_shoulder_yaw
+    # 7 R_elbow
+    q_default:
+      - 0.0
+      - 0.0
+      - 0.58
+      - -1.58
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+
+    # Gain while reaching q_default.
+    # Use moderate gains to avoid violent motion.
+    kp_reach:
+      - 30.0
+      - 30.0
+      - 30.0
+      - 30.0
+      - 30.0
+      - 30.0
+      - 30.0
+      - 30.0
+
+    kd_reach:
+      - 0.5
+      - 0.5
+      - 0.5
+      - 0.5
+      - 0.5
+      - 0.5
+      - 0.5
+      - 0.5
+
+    # Gain after reaching q_default.
+    # Tune these values to test how much payload the arm can hold.
+    kp_hold:
+      - 120.0
+      - 120.0
+      - 120.0
+      - 120.0
+      - 120.0
+      - 120.0
+      - 120.0
+      - 120.0
+
+    kd_hold:
+      - 0.5
+      - 0.5
+      - 0.5
+      - 0.5
+      - 0.5
+      - 0.5
+      - 0.5
+      - 0.5
+
+    # Fixed payload feedforward torque.
+    # Start small, then tune sign and magnitude on real robot.
+    tau_payload_ff:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0

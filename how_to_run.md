@@ -2,6 +2,7 @@
 
 Terminal 1: ros2 launch upper_motor_test whole_body_visualize.launch.py
     Visualize, could run on workstation
+    humanoid@humanoid-B650M-PG-Lightning:~/HoangAnh/upper_pkg_gene$
 
 Terminal 2: ros2 run upper_motor_test lower_humanoid_pseudo
     Pseudo code, fake the feedback of lower body, but actually run the upper hardware
@@ -14,6 +15,7 @@ Terminal 4: ros2 run upper_motor_bridge upper_motor_bridge_node
 
 Terminal 5: ros2 launch launch_scripts test_all.launch.py
     Compute the lower joint command
+    humanoid@humanoid-B650M-PG-Lightning:~/HoangAnh/ros2_pkgs_gene-main$
 
 Terminal 6: ros2 launch upper_momentum_compensator upper_momentum_compensator.launch.py
     Compute the upper joint command based on the lower joint feedback

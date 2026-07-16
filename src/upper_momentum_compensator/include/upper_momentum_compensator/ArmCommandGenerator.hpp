@@ -23,8 +23,8 @@ public:
     const Eigen::Matrix<double, NUM_UPPER_ACT, 1>& dq_cmd) const;
 
 private:
-  double kp_default_{10.0};
-  double kd_default_{0.8};
+  double kp_default_{80.0};
+  double kd_default_{0.5};
 };
 
 }  // namespace upper_momentum_compensator

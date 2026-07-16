@@ -37,6 +37,11 @@ interfaces::msg::CustomJointState ArmCommandGenerator::makeCommand(
 
     cmd.kp[i] = kp_default_;
     cmd.kd[i] = kd_default_;
+    if (i == 0 && i == 4)
+    {
+        cmd.kp[i] = 0.4 * kp_default_;
+        cmd.kd[i] = 3.0 * kd_default_;
+    }
   }
 
   // std::cout << "ArmCommandGenerator::makeCommand: q_cmd = " << q_cmd.transpose() << std::endl;

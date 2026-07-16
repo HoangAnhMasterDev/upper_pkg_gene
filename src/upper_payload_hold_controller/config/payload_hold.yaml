@@ -1,0 +1,126 @@
+upper_payload_hold_controller_node:
+  ros__parameters:
+    command_topic: "/upper_motor/command"
+    joint_state_topic: "/upper_motor/state"
+
+    loop_rate_hz: 100.0
+    dt: 0.01
+
+    hold_current_pose_on_start: false
+
+    move_duration_sec: 3.0
+    max_position_step: 0.01
+
+    load_detect_error_threshold: 0.1
+    load_detect_count: 5
+
+    payload_ramp_rate: 1.0
+
+    fault_error_threshold: 0.50
+    debug_print_hz: 2.0
+
+    joint_names:
+      - "L_shoulder_pitch_joint"
+      - "L_shoulder_roll_joint"
+      - "L_shoulder_yaw_joint"
+      - "L_elbow_joint"
+      - "R_shoulder_pitch_joint"
+      - "R_shoulder_roll_joint"
+      - "R_shoulder_yaw_joint"
+      - "R_elbow_joint"
+
+    q_hold:
+      - -0.35
+      -  0.0
+      -  0.0
+      - -0.45
+      - -0.35
+      -  0.0
+      -  0.0
+      - -0.45
+
+    kp:
+      - 120.0
+      - 0.0
+      - 0.0
+      - 100.0
+      - 120.0
+      - 0.0
+      - 0.0
+      - 100.0
+
+    kd:
+      - 12.0
+      - 0.0
+      - 0.0
+      - 8.0
+      - 12.0
+      - 0.0
+      - 0.0
+      - 8.0
+
+    support_joint_indices:
+      - 0
+      - 3
+      - 4
+      - 7
+
+    adaptive_joint_indices:
+      - 0
+      - 3
+      - 4
+      - 7
+
+    # Nominal tau_ff for known 2 kg payload.
+    # If robot moves in the wrong direction after load detection,
+    # flip the sign of these four nonzero values.
+    payload_nominal_tau:
+      - 2.0
+      - 0.0
+      - 0.0
+      - 1.0
+      - 2.0
+      - 0.0
+      - 0.0
+      - 1.0
+
+    # Small correction only, not the main payload compensation.
+    ki_tau_ff:
+      - 0.8
+      - 0.0
+      - 0.0
+      - 0.4
+      - 0.8
+      - 0.0
+      - 0.0
+      - 0.4
+
+    max_adaptive_tau:
+      - 1.5
+      - 0.0
+      - 0.0
+      - 0.8
+      - 1.5
+      - 0.0
+      - 0.0
+      - 0.8
+
+    max_total_tau_ff:
+      - 5.0
+      - 0.0
+      - 0.0
+      - 3.0
+      - 5.0
+      - 0.0
+      - 0.0
+      - 3.0
+
+    error_deadband:
+      - 0.005
+      - 0.0
+      - 0.0
+      - 0.005
+      - 0.005
+      - 0.0
+      - 0.0
+      - 0.005

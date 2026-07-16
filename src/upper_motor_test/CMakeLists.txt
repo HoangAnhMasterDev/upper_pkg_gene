@@ -29,6 +29,20 @@ install(TARGETS upper_sine_test_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
+add_executable(lower_sine_test_node
+  src/lower_sine_test_node.cpp
+)
+
+ament_target_dependencies(lower_sine_test_node
+  rclcpp
+  sensor_msgs
+  interfaces
+)
+
+install(TARGETS lower_sine_test_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 add_executable(humanoid_pseudo
   src/humanoid_pseudo.cpp
 )

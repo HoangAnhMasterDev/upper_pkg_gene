@@ -1045,9 +1045,12 @@ MomentumCompensator::computeArmCommand(const WholeBodyState& state)
 
     const Vec3 H_right_leg_z_world = z_axis_world * z_axis_world.dot(H_right_leg_world);
 
-    const Vec3 H_left_arm_target_world = -H_right_leg_z_world / arm_to_leg_momentum_ratio_;
+    const Vec3 H_left_arm_target_world = -H_left_leg_z_world / arm_to_leg_momentum_ratio_;
 
-    const Vec3 H_right_arm_target_world = -H_left_leg_z_world / arm_to_leg_momentum_ratio_;
+    const Vec3 H_right_arm_target_world = -H_right_leg_z_world / arm_to_leg_momentum_ratio_;
+
+    // std::cout << "H left leg = " << H_left_leg_z_world <<std::endl;
+    // std::cout << "H right leg = " << H_right_leg_z_world << std::endl;
 
     /*
      * 7. Compute arm momentum matrices.
@@ -1058,13 +1061,17 @@ MomentumCompensator::computeArmCommand(const WholeBodyState& state)
             q_left_arm,
             robot_com_base,
             state.base_orientation);
-
+    // true means left arm, but I set both true to get both two A the positive value
+    // Check the arm motion and leg motion. If it not opposite, set them false
     const Mat34 A_right_arm_world =
         computeMomentumMatrix(
-            false,
+            true,
             q_right_arm,
             robot_com_base,
             state.base_orientation);
+
+    // std::cout << "A left arm = " << A_left_arm_world(2,0) << std::endl;
+    // std::cout << "A right arm = " << A_right_arm_world(2,0) << std::endl;
 
     /*
      * 8. Solve desired arm joint velocities.
@@ -1130,6 +1137,24 @@ MomentumCompensator::computeArmCommand(const WholeBodyState& state)
     }
 
     /*
+    * Remove DC bias from shoulder-pitch momentum velocity.
+    * This forces the integrated shoulder command to oscillate around q_nominal = 0.
+    */
+    static Vec8 dq_momentum_mean = Vec8::Zero();
+
+    const double mean_alpha = 0.005;// smaller = slower mean estimate
+
+    dq_momentum_mean =
+        (1.0 - mean_alpha) * dq_momentum_mean
+        + mean_alpha * dq_momentum_cmd;
+
+    /*
+    * Only remove bias for active shoulder pitch joints.
+    */
+    dq_momentum_cmd(0) -= dq_momentum_mean(0);  // L shoulder pitch
+    dq_momentum_cmd(4) -= dq_momentum_mean(4);  // R shoulder pitch;
+
+    /*
     * 10. Add return-to-nominal term.
     *
     * Current desired nominal is zero:
@@ -1148,7 +1173,7 @@ MomentumCompensator::computeArmCommand(const WholeBodyState& state)
     q_nominal(0) = 0.0;   // L shoulder pitch
     q_nominal(4) = 0.0;   // R shoulder pitch
 
-    const double k_return = 15.0;  // 1/s. Try 0.5 ~ 2.0.
+    const double k_return = 0.5;  // 1/s. Try 0.5 ~ 2.0.
 
     Vec8 dq_return = -k_return * (q_cmd_prev_ - q_nominal);
 
@@ -1169,7 +1194,7 @@ MomentumCompensator::computeArmCommand(const WholeBodyState& state)
     /*
     * Clamp final velocity command after adding return term.
     */
-    const double max_dq_total = 0.5;  // rad/s
+    const double max_dq_total = 2.0;  // rad/s
 
     for (int i = 0; i < 8; ++i)
     {
@@ -1253,7 +1278,8 @@ MomentumCompensator::computeArmCommand(const WholeBodyState& state)
     Vec8 q_cmd_safe;
     q_cmd_safe.setZero();
 
-    const double shoulder_bound = 0.07;  // rad
+    const double shoulder_bound = 0.05;  // rad
+    // KHONG BAO GIO SET BANG 0
 
     /*
     * Shoulder pitch commands from momentum compensation.
@@ -1273,20 +1299,15 @@ MomentumCompensator::computeArmCommand(const WholeBodyState& state)
     /*
     * Human-like elbow coupling.
     *
-    * Desired behavior:
-    *   shoulder fully backward -> elbow = 0.0 rad
-    *   shoulder fully forward  -> elbow = 0.3 rad
+    * Desired mapping:
+    *   q_shoulder = -shoulder_bound  -> q_elbow = -0.3 rad
+    *   q_shoulder = +shoulder_bound  -> q_elbow =  0.0 rad
     *
-    * Assumption:
-    *   q_shoulder > 0 means arm swings forward.
-    *
-    * If RViz shows the opposite behavior, change q_shoulder to -q_shoulder
-    * inside elbowFromShoulder().
+    * Elbow range:
+    *   [-0.3, 0.0] rad
     */
-    const double shoulder_backward_ref = shoulder_bound;
-    const double shoulder_forward_ref  =  -shoulder_bound;
-    const double elbow_backward_value  = 0.0;
-    const double elbow_forward_value   = -0.3;
+    const double elbow_min = -0.3;
+    const double elbow_max =  0.0;
 
     auto smoothstep = [](double x) -> double
     {
@@ -1299,22 +1320,33 @@ MomentumCompensator::computeArmCommand(const WholeBodyState& state)
     auto elbowFromShoulder = [&](double q_shoulder) -> double
     {
         /*
-        * Map:
-        *   q_shoulder = -shoulder_bound -> ratio = 0 -> elbow = 0.0
-        *   q_shoulder = +shoulder_bound -> ratio = 1 -> elbow = -0.3
+        * ratio = 0 when q_shoulder = +shoulder_bound
+        * ratio = 1 when q_shoulder = -shoulder_bound
         */
-        const double ratio_raw = (q_shoulder - shoulder_backward_ref) / (shoulder_forward_ref - shoulder_backward_ref);
+        const double denom = 2.0 * shoulder_bound;
 
-        const double ratio = smoothstep(ratio_raw);
+        if (denom < 1.0e-9)
+        {
+            return 0.0;
+        }
 
-        return elbow_backward_value + (elbow_forward_value - elbow_backward_value) * ratio;
+        const double ratio_raw =
+            (shoulder_bound - q_shoulder) / denom;
+
+        const double ratio =
+            smoothstep(ratio_raw);
+
+        /*
+        * ratio = 0 -> elbow = 0.0
+        * ratio = 1 -> elbow = -0.3
+        */
+        return elbow_max + ratio * (elbow_min - elbow_max);
     };
 
     /*
     * Elbow commands from shoulder pitch.
     */
     q_cmd_safe(3) = elbowFromShoulder(q_cmd_safe(0));  // L_elbow
-
     q_cmd_safe(7) = elbowFromShoulder(q_cmd_safe(4));  // R_elbow
 
     q_cmd_safe(1) = 0.0;
@@ -1352,8 +1384,7 @@ MomentumCompensator::computeArmCommand(const WholeBodyState& state)
     * This is important because elbow is generated from shoulder position,
     * not from the momentum dq_total.
     */
-    Vec8 dq_cmd_out =
-        (q_cmd_safe - q_cmd_prev_) / dt_;
+    Vec8 dq_cmd_out = (q_cmd_safe - q_cmd_prev_) / dt_;
 
     const double max_dq_out = 1.2;  // rad/s
 
